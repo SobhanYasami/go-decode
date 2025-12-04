@@ -2,6 +2,10 @@ package main
 
 import (
 	"bufio"
+	"crypto/md5"
+	"crypto/sha1"
+	"crypto/sha256"
+	"crypto/sha512"
 	"encoding/base64"
 	"encoding/json"
 	"flag"
@@ -101,6 +105,23 @@ func decodeJWT(token string) (string, error) {
 	return result, nil
 }
 
+// Hash functions
+func hashMD5(input string) string {
+	return fmt.Sprintf("%x", md5.Sum([]byte(input)))
+}
+
+func hashSHA1(input string) string {
+	return fmt.Sprintf("%x", sha1.Sum([]byte(input)))
+}
+
+func hashSHA256(input string) string {
+	return fmt.Sprintf("%x", sha256.Sum256([]byte(input)))
+}
+
+func hashSHA512(input string) string {
+	return fmt.Sprintf("%x", sha512.Sum512([]byte(input)))
+}
+
 func main() {
 	// Flags
 	inputFile := flag.String("f", "", "Input file")
@@ -112,6 +133,10 @@ func main() {
 	b64Encode := flag.Bool("b64-encode", false, "Base64 encode input")
 	b64Decode := flag.Bool("b64-decode", false, "Base64 decode input")
 	jwtDecode := flag.Bool("jwt-decode", false, "Decode JWT token")
+	md5Flag := flag.Bool("md5", false, "Generate MD5 hash")
+	sha1Flag := flag.Bool("sha1", false, "Generate SHA1 hash")
+	sha256Flag := flag.Bool("sha256", false, "Generate SHA256 hash")
+	sha512Flag := flag.Bool("sha512", false, "Generate SHA512 hash")
 
 	flag.Parse()
 
@@ -163,6 +188,15 @@ func main() {
 		var decoded []byte
 		decoded, err = base64.StdEncoding.DecodeString(input)
 		output = string(decoded)
+	case *md5Flag:
+		output = hashMD5(input)
+	case *sha1Flag:
+		output = hashSHA1(input)
+	case *sha256Flag:
+		output = hashSHA256(input)
+	case *sha512Flag:
+		output = hashSHA512(input)
+
 	default:
 		output, err = decodeUnicode(input)
 	}

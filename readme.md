@@ -30,7 +30,7 @@ A versatile CLI utility in Go for encoding/decoding Unicode escapes, JSON string
 Clone the repo (or copy code), then:
 
 ```bash
-go build -o unicode-tool unicode-tool.go
+go build -o unicode-tool main.go
 ```
 
 This will create an executable `unicode-tool` (or `unicode-tool.exe` on Windows).
