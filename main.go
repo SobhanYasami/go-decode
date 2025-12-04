@@ -6,7 +6,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/url"
 	"os"
 	"strconv"
@@ -49,15 +49,15 @@ func decodeJSON(str string) (string, error) {
 	return output.String(), nil
 }
 
-// Read file content as string
+// Read file content as string (using os.ReadFile)
 func readFile(path string) (string, error) {
-	data, err := ioutil.ReadFile(path)
+	data, err := os.ReadFile(path)
 	return string(data), err
 }
 
-// Write string content to file
+// Write string content to file (using os.WriteFile)
 func writeFile(path, content string) error {
-	return ioutil.WriteFile(path, []byte(content), 0644)
+	return os.WriteFile(path, []byte(content), 0644)
 }
 
 // Decode JWT token parts and pretty print
@@ -105,7 +105,6 @@ func main() {
 	// Flags
 	inputFile := flag.String("f", "", "Input file")
 	outputFile := flag.String("o", "", "Output file")
-	// decodeFlag := flag.Bool("d", false, "Decode Unicode (default)")
 	encodeFlag := flag.Bool("e", false, "Encode to Unicode")
 	jsonFlag := flag.Bool("json", false, "Decode string values from JSON")
 	urlEncode := flag.Bool("url-encode", false, "URL encode input")
@@ -130,7 +129,11 @@ func main() {
 	} else {
 		stat, _ := os.Stdin.Stat()
 		if (stat.Mode() & os.ModeCharDevice) == 0 {
-			data, _ := ioutil.ReadAll(os.Stdin)
+			data, err := io.ReadAll(os.Stdin)
+			if err != nil {
+				fmt.Println("Stdin read error:", err)
+				return
+			}
 			input = strings.TrimSpace(string(data))
 		} else {
 			fmt.Print("Enter text: ")
