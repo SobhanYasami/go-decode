@@ -2,73 +2,121 @@ package main
 
 import (
 	"bufio"
+	"encoding/json"
 	"flag"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"strconv"
 	"strings"
 )
 
-func decodeUnicode(escaped string) (string, error) {
-	result, err := strconv.Unquote(`"` + escaped + `"`)
-	return result, err
+func decodeUnicode(str string) (string, error) {
+	return strconv.Unquote(`"` + str + `"`)
 }
 
-func decodeFile(path string) (string, error) {
-	file, err := os.Open(path)
-	if err != nil {
-		return "", err
-	}
-	defer file.Close()
-
-	scanner := bufio.NewScanner(file)
-	var output strings.Builder
-
-	for scanner.Scan() {
-		line := scanner.Text()
-		decoded, err := decodeUnicode(line)
-		if err != nil {
-			return "", err
+func encodeUnicode(str string) string {
+	var b strings.Builder
+	for _, r := range str {
+		if r >= 128 {
+			b.WriteString(fmt.Sprintf("\\u%04x", r))
+		} else {
+			b.WriteRune(r)
 		}
-		output.WriteString(decoded + "\n")
 	}
+	return b.String()
+}
 
-	return output.String(), scanner.Err()
+func decodeJSON(str string) (string, error) {
+	var output strings.Builder
+	dec := json.NewDecoder(strings.NewReader(str))
+
+	for {
+		t, err := dec.Token()
+		if err != nil {
+			break
+		}
+		switch v := t.(type) {
+		case string:
+			decoded, _ := decodeUnicode(v)
+			output.WriteString(decoded + "\n")
+		}
+	}
+	return output.String(), nil
+}
+
+// Read file content
+func readFile(path string) (string, error) {
+	data, err := ioutil.ReadFile(path)
+	return string(data), err
+}
+
+// Save output
+func writeFile(path, content string) error {
+	return ioutil.WriteFile(path, []byte(content), 0644)
 }
 
 func main() {
-	fileFlag := flag.String("f", "", "Path of file containing unicode text to decode")
+	inputFile := flag.String("f", "", "Input file")
+	outputFile := flag.String("o", "", "Output file")
+	// decodeFlag := flag.Bool("d", false, "Decode Unicode (default)")
+	encodeFlag := flag.Bool("e", false, "Encode to Unicode")
+	jsonFlag := flag.Bool("json", false, "Auto decode all string values from JSON")
+
 	flag.Parse()
 
-	// If -f is used, decode file
-	if *fileFlag != "" {
-		res, err := decodeFile(*fileFlag)
+	// Grab input (priority: file > arg > stdin)
+	var input string
+	if *inputFile != "" {
+		content, err := readFile(*inputFile)
 		if err != nil {
-			fmt.Println("Error:", err)
-			os.Exit(1)
+			fmt.Println("File read error:", err)
+			return
 		}
-		fmt.Println(res)
+		input = content
+	} else if len(flag.Args()) > 0 {
+		input = strings.Join(flag.Args(), " ")
+	} else {
+		// Read from stdin (pipe support)
+		stat, _ := os.Stdin.Stat()
+		if (stat.Mode() & os.ModeCharDevice) == 0 {
+			data, _ := ioutil.ReadAll(os.Stdin)
+			input = string(data)
+		} else {
+			fmt.Print("Enter text: ")
+			reader := bufio.NewReader(os.Stdin)
+			in, _ := reader.ReadString('\n')
+			input = strings.TrimSpace(in)
+		}
+	}
+
+	// Process input
+	var output string
+	var err error
+
+	// Default mode is decode unless encode flag exists
+	if *encodeFlag {
+		output = encodeUnicode(input)
+	} else if *jsonFlag {
+		output, err = decodeJSON(input)
+	} else {
+		output, err = decodeUnicode(input)
+	}
+
+	if err != nil {
+		fmt.Println("Error:", err)
 		return
 	}
 
-	var input string
-
-	// If arguments passed (not flag), decode argument
-	if len(flag.Args()) > 0 {
-		input = strings.Join(flag.Args(), " ")
-	} else {
-		// Otherwise read from stdin
-		fmt.Print("Enter unicode string: ")
-		reader := bufio.NewReader(os.Stdin)
-		inp, _ := reader.ReadString('\n')
-		input = strings.TrimSpace(inp)
+	// If -o provided write to file
+	if *outputFile != "" {
+		if err := writeFile(*outputFile, output); err != nil {
+			fmt.Println("Write output file error:", err)
+		} else {
+			fmt.Println("Saved to:", *outputFile)
+		}
+		return
 	}
 
-	decoded, err := decodeUnicode(input)
-	if err != nil {
-		fmt.Println("Error decoding string:", err)
-		os.Exit(1)
-	}
-
-	fmt.Println(decoded)
+	fmt.Print(output)
 }
